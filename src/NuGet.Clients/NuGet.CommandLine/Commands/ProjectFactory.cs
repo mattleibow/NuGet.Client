@@ -1257,9 +1257,15 @@ namespace NuGet.CommandLine
                     continue;
                 }
 
+                var keepSpecialFiles = builder?.LicenseMetadata?.Type == LicenseType.File;
+
+
                 if (IncludeSymbols &&
                     SymbolPackageFormat == SymbolPackageFormat.Snupkg &&
-                    !string.Equals(Path.GetExtension(fullPath), ".pdb", StringComparison.OrdinalIgnoreCase))
+                    ((keepSpecialFiles ? !string.Equals(
+                        PathUtility.StripLeadingDirectorySeparators(fullPath),
+                        PathUtility.StripLeadingDirectorySeparators(builder.LicenseMetadata.License)) : true) ||
+                    !string.Equals(Path.GetExtension(fullPath), ".pdb", StringComparison.OrdinalIgnoreCase)))
                 {
                     continue;
                 }

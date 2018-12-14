@@ -118,15 +118,16 @@ namespace NuGet.Commands
 
         private void AddOutputFiles(PackageBuilder builder)
         {
+            // do stuff maybe here. It'll be difficult.
             if (PackTargetArgs.IncludeBuildOutput)
             {
-                AddOutputLibFiles(PackTargetArgs.TargetPathsToSymbols, IncludeSymbols ? PackTargetArgs.AllowedOutputExtensionsInSymbolsPackageBuildOutputFolder : PackTargetArgs.AllowedOutputExtensionsInPackageBuildOutputFolder);
+                AddOutputLibFiles(builder, PackTargetArgs.TargetPathsToSymbols, IncludeSymbols ? PackTargetArgs.AllowedOutputExtensionsInSymbolsPackageBuildOutputFolder : PackTargetArgs.AllowedOutputExtensionsInPackageBuildOutputFolder);
 
-                AddOutputLibFiles(PackTargetArgs.TargetPathsToAssemblies, PackTargetArgs.AllowedOutputExtensionsInPackageBuildOutputFolder);
+                AddOutputLibFiles(builder, PackTargetArgs.TargetPathsToAssemblies, PackTargetArgs.AllowedOutputExtensionsInPackageBuildOutputFolder);
             }
         }
 
-        private void AddOutputLibFiles(IEnumerable<OutputLibFile> libFiles, HashSet<string> allowedExtensions)
+        private void AddOutputLibFiles(PackageBuilder builder, IEnumerable<OutputLibFile> libFiles, HashSet<string> allowedExtensions)
         {
             var targetFolder = PackTargetArgs.BuildOutputFolder;
             foreach (var file in libFiles)
@@ -146,19 +147,25 @@ namespace NuGet.Commands
                     Target = IsTool ? Path.Combine(targetFolder, targetPath) : Path.Combine(targetFolder, tfm, targetPath)
                 };
 
-                AddFileToBuilder(packageFile);
+                AddFileToBuilder(builder, packageFile);
             }
         }
 
-        private bool AddFileToBuilder(ManifestFile packageFile)
+        private bool AddFileToBuilder(PackageBuilder builder, ManifestFile packageFile)
         {
+            // The builder could be null here, if it's coming from add source.
+            var keepSpecialFiles = builder?.LicenseMetadata?.Type == LicenseType.File;
+
             if (!Files.Any(p => packageFile.Target.Equals(p.Target, StringComparison.CurrentCultureIgnoreCase)))
             {
                 var fileExtension = Path.GetExtension(packageFile.Source);
-
-                if(IncludeSymbols &&
+                if (IncludeSymbols &&
                     PackArgs.SymbolPackageFormat == SymbolPackageFormat.Snupkg &&
-                    !string.Equals(fileExtension, ".pdb", StringComparison.OrdinalIgnoreCase))
+
+                    ((keepSpecialFiles ? !string.Equals(
+                        PathUtility.StripLeadingDirectorySeparators(packageFile.Source),
+                        PathUtility.StripLeadingDirectorySeparators(builder.LicenseMetadata.License)) : true) ||
+                    !string.Equals(fileExtension, ".pdb", StringComparison.OrdinalIgnoreCase))) 
                 {
                     return false;
                 }
@@ -194,7 +201,7 @@ namespace NuGet.Commands
                         ? Path.Combine(target, Path.GetFileName(sourcePath))
                         : target
                     };
-                    var added = AddFileToBuilder(packageFile);
+                    var added = AddFileToBuilder(builder, packageFile);
 
                     // Add contentFiles entry to the nuspec if applicable
                     if (added && IsContentFile(contentMetadata.Target))
@@ -234,7 +241,7 @@ namespace NuGet.Commands
                     Source = sourcePath,
                     Target = finalTargetPath
                 };
-                AddFileToBuilder(packageFile);
+                AddFileToBuilder(null, packageFile);
             }
         }
 

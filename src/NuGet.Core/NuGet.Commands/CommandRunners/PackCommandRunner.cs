@@ -926,14 +926,15 @@ namespace NuGet.Commands
         private void BuildSymbolsPackage(string path)
         {
             var symbolsBuilder = CreatePackageBuilderFromNuspec(path);
-            if(_packArgs.SymbolPackageFormat == SymbolPackageFormat.Snupkg &&
-                !symbolsBuilder.PackageTypes.Contains(PackageType.SymbolsPackage))
+            if(_packArgs.SymbolPackageFormat == SymbolPackageFormat.Snupkg)
             {
+                symbolsBuilder.PackageTypes.Clear();
                 symbolsBuilder.PackageTypes.Add(PackageType.SymbolsPackage);
             }
 
+            // here it might be the nuspec/targets pack or something?
             // remove unnecessary files when building the symbols package
-            ExcludeFilesForSymbolPackage(symbolsBuilder.Files, _packArgs.SymbolPackageFormat);
+            ExcludeFilesForSymbolPackage(symbolsBuilder, symbolsBuilder.Files, _packArgs.SymbolPackageFormat);
 
             if (!symbolsBuilder.Files.Any())
             {
@@ -986,12 +987,14 @@ namespace NuGet.Commands
             PathResolver.FilterPackageFiles(files, file => file.Path, _libPackageExcludes);
         }
 
-        internal static void ExcludeFilesForSymbolPackage(ICollection<IPackageFile> files, SymbolPackageFormat symbolPackageFormat)
+        internal static void ExcludeFilesForSymbolPackage(PackageBuilder symbolsBuilder, ICollection<IPackageFile> files, SymbolPackageFormat symbolPackageFormat)
         {
+            var keepSpecialMetadataFiles = symbolsBuilder.LicenseMetadata?.Type == LicenseType.File;
+            
             PathResolver.FilterPackageFiles(files, file => file.Path, _symbolPackageExcludes);
             if(symbolPackageFormat == SymbolPackageFormat.Snupkg)
             {
-                var toRemove = files.Where(t => !string.Equals(Path.GetExtension(t.Path), ".pdb", StringComparison.OrdinalIgnoreCase)).ToList();
+                var toRemove = files.Where(t => !string.Equals(Path.GetExtension(t.Path), ".pdb", StringComparison.OrdinalIgnoreCase) && keepSpecialMetadataFiles ? PathUtility.StripLeadingDirectorySeparators(t.Path).Equals(symbolsBuilder.LicenseMetadata.License) : true).ToList();
                 foreach(var fileToRemove in toRemove)
                 {
                     files.Remove(fileToRemove);
